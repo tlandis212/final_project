@@ -19,6 +19,8 @@ My repository can be found [here](https://github.com/tlandis212/final_project).
 
 *Milestone 4 Update*: I further cleaned up my datafile. It is now smaller and only includes essential variables.
 
+My plan is to create topline descriptions of how many people voted in each election after the previous one.
+
 
 ```{r merge, echo = FALSE}
 # I didn't include the dataset in my repository because the file are too large.
