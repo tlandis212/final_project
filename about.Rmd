@@ -33,4 +33,12 @@ alamance_reg <- read.delim("raw-data/ncvoter1.txt")
 
 alamance_full_voter <- full_join(alamance_hist, alamance_reg, by=c("voter_reg_num"))
 
+# Reduce the number of variables by eliminating unwanted variables and filter to
+# only include voters who would be voting for the first time in 2008 or
+# post-2008 elections
+
+alamance_full_voter_reduced <- alamance_full_voter %>% 
+  select(county_id.x:voted_party_cd, status_cd:absent_ind, birth_year, birth_state) %>% 
+  filter(birth_year >= 1990)
+
 ```
