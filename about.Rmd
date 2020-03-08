@@ -17,6 +17,8 @@ Dataset 1 is alamance_hist (ncvhis1.txt). It is a .txt file that I downloaded fr
 
 My repository can be found [here](https://github.com/tlandis212/final_project).
 
+*Milestone 4 Update*: I further cleaned up my datafile. It is now smaller and only includes essential variables.
+
 
 ```{r merge, echo = FALSE}
 # I didn't include the dataset in my repository because the file are too large.
