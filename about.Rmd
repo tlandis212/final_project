@@ -7,6 +7,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(gt)
+library(lubridate)
 ```
 
 For my project, I am looking at the effect first-time voting type has on future voting behaviors. If someone's first possible vote (i.e. the first possible election they can vote in after they turn 18), is cast through an absentee ballot, does that affect their likelihood of voting in future elections?
@@ -37,12 +39,55 @@ alamance_reg <- read.delim("raw-data/ncvoter1.txt")
 
 alamance_full_voter <- full_join(alamance_hist, alamance_reg, by=c("voter_reg_num"))
 
+# Find a list of all elections and their turnout. Due to the high number of
+# extremely low turn out local elections, I am limiting this to the top 15. I
+# filtered out missing values for election_desc as this filters out voters who
+# have never cast a ballot.
+
+turnout <- alamance_full_voter %>% 
+  mutate(election_lbl = mdy(election_lbl)) %>% 
+  filter(!is.na(election_desc)) %>% 
+  count(election_lbl, election_desc) %>% 
+  arrange(desc(n)) %>% 
+  slice(1:15)
+
+# I plotted turnout for each election, sorted in descending order of turnout. I
+# used coord_flip() so the full election names can be shown. Because I'm using
+# the count variable from my tibble (rather than doing it through geom_bar()), I
+# needed to set stat = "identity".
+
+ggplot(turnout, aes(reorder(election_desc, -n), n)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  theme_classic() +
+  labs(title = "Turnout in Alamance, NC by Election", subtitle = "Number of Raw Votes Cast", caption = "Data Source: NC Secretary of State", x = "Election", y = "Votes Cast")
+  
+
 # Reduce the number of variables by eliminating unwanted variables and filter to
 # only include voters who would be voting for the first time in 2008 or
 # post-2008 elections
 
 alamance_full_voter_reduced <- alamance_full_voter %>% 
-  select(county_id.x:voted_party_cd, status_cd:absent_ind, birth_year, birth_state) %>% 
-  filter(birth_year >= 1990)
+  select(county_id.x:election_lbl, voting_method:voted_party_cd, status_cd:absent_ind, birth_year, birth_state) %>% 
+  filter(birth_year >= 1990) %>% 
+ mutate(election_lbl = mdy(election_lbl)) %>% 
+  arrange(election_lbl) %>% 
+  
+  # Create a dummy variable that says if a person voted in an election
+  
+  pivot_wider(names_from = election_lbl, values_from = voting_method, values_fill = list(voted_method = "No Vote")) %>% 
+  arrange(voter_reg_num)
+
+# I want to see what percentage of people who voted in the 2012 general election
+# also voted in the 2014 general election
+
+alamance_full_voter_reduced %>% 
+  filter()
+  
+          
+
+
+
+
 
 ```
