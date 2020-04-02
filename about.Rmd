@@ -9,6 +9,20 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(gt)
 library(lubridate)
+
+# I didn't include the dataset in my repository because the file are too large.
+# Information on how to download my datasets can be found in my README.md. In a
+# Piazza post, it was suggested this was a viable alternative to using GitHub
+# LFS.
+
+# Load in both datasets
+
+alamance_hist <- read.delim("raw-data/ncvhis1.txt")
+alamance_reg <- read.delim("raw-data/ncvoter1.txt")
+
+# Use full join to merge both datasets
+
+alamance_full_voter <- full_join(alamance_hist, alamance_reg, by=c("voter_reg_num"))
 ```
 
 For my project, I am looking at the effect first-time voting type has on future voting behaviors. If someone's first possible vote (i.e. the first possible election they can vote in after they turn 18), is cast through an absentee ballot, does that affect their likelihood of voting in future elections?
@@ -23,22 +37,19 @@ My repository can be found [here](https://github.com/tlandis212/final_project).
 
 My plan is to create topline descriptions of how many people voted in each election after the previous one.
 
+# Exploring the Dataset
 
-```{r merge, echo = FALSE}
-# I didn't include the dataset in my repository because the file are too large.
-# Information on how to download my datasets can be found in my README.md. In a
-# Piazza post, it was suggested this was a viable alternative to using GitHub
-# LFS.
+```{r summary, echo = FALSE}
 
-# Load in both datasets
+alamance_full_voter%>% 
+  group_by(voting_method) %>% 
+  summarize(count = n()) %>% 
+  gt()
 
-alamance_hist <- read.delim("raw-data/ncvhis1.txt")
-alamance_reg <- read.delim("raw-data/ncvoter1.txt")
+```
 
-# Use full join to merge both datasets
 
-alamance_full_voter <- full_join(alamance_hist, alamance_reg, by=c("voter_reg_num"))
-
+```{r turnout, echo = FALSE}
 # Find a list of all elections and their turnout. Due to the high number of
 # extremely low turn out local elections, I am limiting this to the top 15. I
 # filtered out missing values for election_desc as this filters out voters who
@@ -61,33 +72,47 @@ ggplot(turnout, aes(reorder(election_desc, -n), n)) +
   coord_flip() +
   theme_classic() +
   labs(title = "Turnout in Alamance, NC by Election", subtitle = "Number of Raw Votes Cast", caption = "Data Source: NC Secretary of State", x = "Election", y = "Votes Cast")
+```
   
-
+```{r, small_dataset, echo = FALSE }
 # Reduce the number of variables by eliminating unwanted variables and filter to
-# only include voters who would be voting for the first time in 2008 or
-# post-2008 elections
+# create our dataset. As a reminder, we want an overall dataset that only
+# contains voters who voted for the first time in 2012. We will be creating a
+# control group (voted in person or one-stop absentee in 2012) and a treatment
+# group (voted absentee in 2012)
 
-alamance_full_voter_reduced <- alamance_full_voter %>% 
+alamance_small <- alamance_full_voter %>% 
   select(county_id.x:election_lbl, voting_method:voted_party_cd, status_cd:absent_ind, birth_year, birth_state) %>% 
-  filter(birth_year >= 1990) %>% 
- mutate(election_lbl = mdy(election_lbl)) %>% 
-  arrange(election_lbl) %>% 
   
-  # Create a dummy variable that says if a person voted in an election
+  # Voters born in 1994 will have turned 18 in 2012
   
-  pivot_wider(names_from = election_lbl, values_from = voting_method, values_fill = list(voted_method = "No Vote")) %>% 
+  filter(birth_year >= 1994) %>% 
+  
+  # Create a variable which contains the election, but as a string rather than a
+  # date. This is so that we can cast these into variables later when we make
+  # our data wider. I'm only relabeling for three elections, since I'm going to
+  # filter our dataset to only include these three elections
+  
+  mutate(election = recode_factor(election_lbl, `11/06/2012` = "gelection_2012",
+                `11/04/2014` = "gelection_2014",
+                `11/08/2016` = "gelection_2016")) %>% 
+  
+  filter(election == "gelection_2012" | election == "gelection_2014" | election == "gelection_2016") %>% 
+
+  # Create a dummy variable that signifies if a vote was cast by a mail-in
+  # absentee ballot. NC offers several type of absentee voting, but we're only
+  # interested in mail-in absentees. All other forms of absentee voting requires
+  # in-person precense and we will count this as an in-person vote
+
+  mutate(absentee = ifelse(voting_method == "ABSENTEE BY MAIL", "Absentee", "Not Absentee")) %>% 
+  
+  # Select the only variables we need now
+  
+  select(county_id.x:county_desc.x, voter_reg_num, election, absentee) %>% 
+  
+  # Create a variable for each of the elections and make the value equal to
+  # "Absentee", "Not Absentee", "No Vote"
+  
+  pivot_wider(names_from = election, values_from = absentee, values_fill = list(absentee = "No Vote")) %>% 
   arrange(voter_reg_num)
-
-# I want to see what percentage of people who voted in the 2012 general election
-# also voted in the 2014 general election
-
-alamance_full_voter_reduced %>% 
-  filter()
-  
-          
-
-
-
-
-
 ```
