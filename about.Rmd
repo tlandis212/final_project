@@ -135,7 +135,8 @@ alamance_small %>%
   mutate(treatment = ifelse(gelection_2012 == "Absentee", TRUE, FALSE)) %>% 
   group_by(treatment) %>% 
   summarize(count = n()) %>% 
-  gt()
+  gt() %>% 
+  tab_header(title = ("Sample Size of Treatment and Control Groups")
 
 ```
 
