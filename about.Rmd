@@ -37,9 +37,12 @@ My repository can be found [here](https://github.com/tlandis212/final_project).
 
 My plan is to create topline descriptions of how many people voted in each election after the previous one.
 
-# Exploring the Dataset
+## Exploring the Dataset
 
 ```{r summary, echo = FALSE}
+
+# I checked to see what types of voting methods there were. Everything that
+# isn't "Absentee by Mail" requires an in-person vote.
 
 alamance_full_voter%>% 
   group_by(voting_method) %>% 
@@ -47,7 +50,7 @@ alamance_full_voter%>%
   gt()
 
 ```
-
+## Milestone 5
 
 ```{r turnout, echo = FALSE}
 # Find a list of all elections and their turnout. Due to the high number of
@@ -74,7 +77,7 @@ ggplot(turnout, aes(reorder(election_desc, -n), n)) +
   labs(title = "Turnout in Alamance, NC by Election", subtitle = "Number of Raw Votes Cast", caption = "Data Source: NC Secretary of State", x = "Election", y = "Votes Cast")
 ```
   
-```{r, small_dataset, echo = FALSE }
+```{r small_dataset, echo = FALSE }
 # Reduce the number of variables by eliminating unwanted variables and filter to
 # create our dataset. As a reminder, we want an overall dataset that only
 # contains voters who voted for the first time in 2012. We will be creating a
@@ -114,5 +117,25 @@ alamance_small <- alamance_full_voter %>%
   # "Absentee", "Not Absentee", "No Vote"
   
   pivot_wider(names_from = election, values_from = absentee, values_fill = list(absentee = "No Vote")) %>% 
+  
+  # Only include voters who voted in the 2012 election
+  filter(gelection_2012 != "No Vote") %>% 
   arrange(voter_reg_num)
 ```
+
+## Milestone 6
+
+```{r ms6, echo = FALSE}
+
+# Use alamance_small for Milestone 6. 
+
+# Identify voters as part of the control or treatment group
+
+alamance_small %>% 
+  mutate(treatment = ifelse(gelection_2012 == "Absentee", TRUE, FALSE)) %>% 
+  group_by(treatment) %>% 
+  summarize(count = n()) %>% 
+  gt()
+
+```
+
