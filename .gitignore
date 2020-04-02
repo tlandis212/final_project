@@ -5,3 +5,9 @@
 .DS_Store
 
 final_project.Rproj
+
+raw-data/
+rsconnect/
+test/
+turnout_rpubs.Rmd
+turnout_rpubs.html
