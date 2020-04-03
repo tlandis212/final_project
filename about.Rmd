@@ -17,8 +17,8 @@ library(lubridate)
 
 # Load in both datasets
 
-alamance_hist <- read.delim("raw-data/ncvhis1.txt")
-alamance_reg <- read.delim("raw-data/ncvoter1.txt")
+alamance_hist <- read.delim("raw_data/ncvhis1.txt")
+alamance_reg <- read.delim("raw_data/ncvoter1.txt")
 
 # Use full join to merge both datasets
 
@@ -131,54 +131,71 @@ alamance_small <- alamance_full_voter %>%
 
 # Identify voters as part of the control or treatment group
 
-ms_six <- alamance_small %>% 
-  mutate(treatment = ifelse(gelection_2012 == "Absentee", TRUE, FALSE))
-  
-  ms_six %>% 
-  group_by(treatment) %>% 
-  summarize(count = n())  %>% 
-  gt() %>% 
-  tab_header(title = ("Sample Size of Treatment and Control Groups"))
+ms_six_b <- alamance_small %>% 
+  mutate(treatment = ifelse(gelection_2012 == "Absentee", "Absentee", "In Person/Early Vote"),
+         outcome_2014 = ifelse(gelection_2014 != "No Vote", "Vote", "No vote"),
+         outcome_2016 = ifelse(gelection_2016 != "No Vote", "Vote", "No vote"))
 ```
 
 ```{r}
+# Play around with aes() in the ggplot with combinations of outcome_2014 and treatment. 
+  # Count of XX Year total votes divided by count of treatment votes
 
-  ggplot(ms_six, aes(x = treatment)) + 
-  geom_bar(aes(y = (..count..)/(..count..))) +
+    ggplot(ms_six_b, aes(x = treatment)) + 
+  geom_bar(aes(y = (..count..)/(..count..)), fill = "red") +
     scale_y_continuous(labels=scales::percent) +
-      geom_text(aes( label = scales::percent((..count..)/sum(..count..)),
-  y= (..count..)/sum(..count..)), stat= "count", vjust = -.3) +
-  theme_classic() +
+   theme_classic() +
   labs(x = "Voting Method",
        y = "Percent of Voters",
-       title = "Voting Method in the 2012 General Election",
-       subtitle = "18-year-old Voters from Alamance County, NC",
-       fill = "Voted Absentee in\n2012 General Election")
-
-ms_six_b <- ms_six %>% 
-  mutate(treatment_2014 = ifelse(treatment == TRUE & gelection_2014 != "No Vote", TRUE, FALSE),
-         control_2014 = ifelse(treatment == FALSE & gelection_2014 != "No Vote", TRUE, FALSE))
+       title = "Voting in the 2012 General Election",
+       subtitle = "18-year-old Voters from Alamance County, NC")
+```
+```{r}
+ms_six <- ms_six_b %>% 
+  mutate(treatment_2014 = ifelse(treatment == "Absentee" & gelection_2014 != "No Vote", TRUE, FALSE),
+         control_2014 = ifelse(treatment == "In Person/Early Vote" & gelection_2014 != "No Vote", TRUE, FALSE))
   
-ms_six_b %>% 
+ms_six %>% 
   count(control_2014)
 
-ms_six_b %>% 
-  count(treatment_2014)
+count_voted_2012 <- ms_six %>% 
+  filter(treatment == "Absentee") %>%
+  count() %>% 
+  pull()
 
+count_voted_2014 <- ms_six %>% 
+  filter(treatment_2014 == "TRUE") %>% 
+  count() %>% 
+  pull()
+  
+treatment_2014_x <- count_voted_2014 / count_voted_2012
 
-ggplot(ms_six_b, aes(x = treatment_voted_2014)) + 
-  geom_bar(aes(y = (..count..)/(..count..))) +
+count_voted_2012_control <- ms_six %>% 
+  filter(treatment == "In Person/Early Vote") %>%
+  count() %>% 
+  pull()
+
+count_voted_2014_control <- ms_six %>% 
+  filter(control_2014 == "TRUE") %>% 
+  count() %>% 
+  pull()
+
+control_2014_x <- count_voted_2014_control / count_voted_2012_control
+```
+
+```{r}
+ggplot(ms_six, aes(x = outcome_2014, fill = treatment)) + 
+  geom_bar(aes(y = (control_2014_x)/(..count..))) +
   scale_y_continuous(labels=scales::percent) +
-    geom_text(aes( label = scales::percent((..count..)/(..count..)),
-  y= (..count..)/(..count..)), stat= "count", vjust = -1) +
   theme_classic() +
   labs(x = "Voting Method",
        y = "Percent of Voters",
        title = "Voting Method in the 2014 General Election",
-       subtitle = "20-year-old Voters from Alamance County, NC",
-       fill = "Voted Absentee in\n2012 General Election")
+       subtitle = "20-year-old Voters from Alamance County, NC")
+```
 
-ggplot(ms_six_b, aes(x = gelection_2016, fill = treatment)) + 
+```{r}
+ggplot(ms_six, aes(x = gelection_2016, fill = treatment)) + 
   geom_bar(aes(y = (..count..)/sum(..count..))) +
   scale_y_continuous(labels=scales::percent) +
   geom_text(aes( label = scales::percent((..count..)/sum(..count..)),
