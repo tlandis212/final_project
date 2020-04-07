@@ -1,6 +1,6 @@
 ---
 title: "About"
-author: "Teddy Landis"
+author: "Teddy Landis and Liz Hoveland"
 output: html_document
 ---
 
@@ -17,8 +17,8 @@ library(lubridate)
 
 # Load in both datasets
 
-alamance_hist <- read.delim("raw_data/ncvhis1.txt")
-alamance_reg <- read.delim("raw_data/ncvoter1.txt")
+alamance_hist <- read.delim("raw-data/ncvhis1.txt")
+alamance_reg <- read.delim("raw-data/ncvoter1.txt")
 
 # Use full join to merge both datasets
 
@@ -132,9 +132,21 @@ alamance_small <- alamance_full_voter %>%
 # Identify voters as part of the control or treatment group
 
 ms_six_b <- alamance_small %>% 
-  mutate(treatment = ifelse(gelection_2012 == "Absentee", "Absentee", "In Person/Early Vote"),
-         outcome_2014 = ifelse(gelection_2014 != "No Vote", "Vote", "No vote"),
-         outcome_2016 = ifelse(gelection_2016 != "No Vote", "Vote", "No vote"))
+  mutate(treatment = ifelse(gelection_2012 == "Absentee", 1, 0),
+         outcome_2012 = ifelse(gelection_2012 != "No Vote", 1, 0),
+         outcome_2014 = ifelse(gelection_2014 != "No Vote", 1, 0),
+         outcome_2016 = ifelse(gelection_2016 != "No Vote", 1, 0))
+
+ms_six_b %>% 
+  select(treatment, outcome_2012, outcome_2014, outcome_2016) %>% 
+  group_by(treatment) %>% 
+  aggregate()
+
+
+  summarize(count = n())
+  
+  # Sum by a certain amount. Save as a new dataframe
+  
 ```
 
 ```{r}
@@ -145,11 +157,17 @@ ms_six_b <- alamance_small %>%
   geom_bar(aes(y = (..count..)/(..count..)), fill = "red") +
     scale_y_continuous(labels=scales::percent) +
    theme_classic() +
-  labs(x = "Voting Method",
+  labs(x = "Treatment Group",
        y = "Percent of Voters",
        title = "Voting in the 2012 General Election",
        subtitle = "18-year-old Voters from Alamance County, NC")
+
+ggsave("ms6/ms_6.png")
+
+# X axis as year. Subsequent years, % of 2012. 
 ```
+
+
 ```{r}
 ms_six <- ms_six_b %>% 
   mutate(treatment_2014 = ifelse(treatment == "Absentee" & gelection_2014 != "No Vote", TRUE, FALSE),
