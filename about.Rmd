@@ -39,6 +39,9 @@ My plan is to create topline descriptions of how many people voted in each elect
 
 ## Exploring the Dataset
 
+Looking at how the data is formatted, we learn that we're interested in folks who vote "Absentee by Mail". Everyone else can be considered an in person vote. 
+
+
 ```{r summary, echo = FALSE}
 
 # I checked to see what types of voting methods there were. Everything that
@@ -47,10 +50,14 @@ My plan is to create topline descriptions of how many people voted in each elect
 alamance_full_voter%>% 
   group_by(voting_method) %>% 
   summarize(count = n()) %>% 
-  gt()
+  gt() %>% 
+  tab_header(title = "Exploring type of voting in the NC Voter File") %>% 
+  cols_label(voting_method = "Voting Method", count = "Count")
 
 ```
 ## Milestone 5
+
+I wanted to see which elections I should focus on. My instinct was to focus on the general elections in 2012, 2014, 2016, and 2018, unless there were any other particularly high turnout elections. My suspicion was correct.
 
 ```{r turnout, echo = FALSE}
 # Find a list of all elections and their turnout. Due to the high number of
@@ -76,16 +83,13 @@ ggplot(turnout, aes(reorder(election_desc, -n), n)) +
   theme_classic() +
   labs(title = "Turnout in Alamance, NC by Election", subtitle = "Number of Raw Votes Cast", caption = "Data Source: NC Secretary of State", x = "Election", y = "Votes Cast")
 ```
+
   
 ```{r small_dataset, echo = FALSE }
 # Reduce the number of variables by eliminating unwanted variables and filter to
-# create our dataset. As a reminder, we want an overall dataset that only
-# contains voters who voted for the first time in 2012. We will be creating a
-# control group (voted in person or one-stop absentee in 2012) and a treatment
-# group (voted absentee in 2012)
+# create our universe of voters: people who turned 18 in 2012 *and* voted that year.
 
 alamance_small <- alamance_full_voter %>% 
-  select(county_id.x:election_lbl, voting_method:voted_party_cd, status_cd:absent_ind, birth_year, birth_state) %>% 
   
   # Voters born in 1994 will have turned 18 in 2012
   
@@ -93,14 +97,15 @@ alamance_small <- alamance_full_voter %>%
   
   # Create a variable which contains the election, but as a string rather than a
   # date. This is so that we can cast these into variables later when we make
-  # our data wider. I'm only relabeling for three elections, since I'm going to
-  # filter our dataset to only include these three elections
+  # our data wider. I'm only relabeling for four elections, since I'm going to
+  # filter our dataset to only include these four elections
   
   mutate(election = recode_factor(election_lbl, `11/06/2012` = "gelection_2012",
                 `11/04/2014` = "gelection_2014",
-                `11/08/2016` = "gelection_2016")) %>% 
+                `11/08/2016` = "gelection_2016",
+                `11/06/2018` = "gelection_2018")) %>% 
   
-  filter(election == "gelection_2012" | election == "gelection_2014" | election == "gelection_2016") %>% 
+  filter(election == "gelection_2012" | election == "gelection_2014" | election == "gelection_2016" | election == "gelection_2018") %>% 
 
   # Create a dummy variable that signifies if a vote was cast by a mail-in
   # absentee ballot. NC offers several type of absentee voting, but we're only
@@ -123,7 +128,9 @@ alamance_small <- alamance_full_voter %>%
   arrange(voter_reg_num)
 ```
 
-## Milestone 6
+## Defining the Experiment
+
+
 
 ```{r ms6, echo = FALSE}
 
@@ -131,98 +138,89 @@ alamance_small <- alamance_full_voter %>%
 
 # Identify voters as part of the control or treatment group
 
-ms_six_b <- alamance_small %>% 
-  mutate(treatment = ifelse(gelection_2012 == "Absentee", 1, 0),
-         outcome_2012 = ifelse(gelection_2012 != "No Vote", 1, 0),
-         outcome_2014 = ifelse(gelection_2014 != "No Vote", 1, 0),
-         outcome_2016 = ifelse(gelection_2016 != "No Vote", 1, 0))
+treatment <- alamance_small %>% 
+ 
+  # Identify voters as part of the control or treatment group
+  
+  mutate(treatment = ifelse(gelection_2012 == "Absentee", TRUE, FALSE),
+  
+         # Create election outcome variables
+         
+         outcome_2012 = ifelse(gelection_2012 != "No Vote", TRUE, FALSE),
+         outcome_2014 = ifelse(gelection_2014 != "No Vote", TRUE, FALSE),
+         outcome_2016 = ifelse(gelection_2016 != "No Vote", TRUE, FALSE),
+         outcome_2018 = ifelse(gelection_2018 != "No Vote", TRUE, FALSE))
 
-ms_six_b %>% 
-  select(treatment, outcome_2012, outcome_2014, outcome_2016) %>% 
+
+# Print summary statistics of our treatment and control group
+
+treatment %>% 
   group_by(treatment) %>% 
-  aggregate()
+  count() %>% 
+  ungroup() %>% 
+  gt()
 
-
-  summarize(count = n())
-  
-  # Sum by a certain amount. Save as a new dataframe
-  
-```
-
-```{r}
-# Play around with aes() in the ggplot with combinations of outcome_2014 and treatment. 
-  # Count of XX Year total votes divided by count of treatment votes
-
-    ggplot(ms_six_b, aes(x = treatment)) + 
-  geom_bar(aes(y = (..count..)/(..count..)), fill = "red") +
-    scale_y_continuous(labels=scales::percent) +
-   theme_classic() +
-  labs(x = "Treatment Group",
-       y = "Percent of Voters",
-       title = "Voting in the 2012 General Election",
-       subtitle = "18-year-old Voters from Alamance County, NC")
-
-ggsave("ms6/ms_6.png")
-
-# X axis as year. Subsequent years, % of 2012. 
 ```
 
 
 ```{r}
-ms_six <- ms_six_b %>% 
-  mutate(treatment_2014 = ifelse(treatment == "Absentee" & gelection_2014 != "No Vote", TRUE, FALSE),
-         control_2014 = ifelse(treatment == "In Person/Early Vote" & gelection_2014 != "No Vote", TRUE, FALSE))
+
+# Create a new data frame with our summary statistics for the experiment
+
+treatment_outcomes <- treatment %>% 
   
-ms_six %>% 
-  count(control_2014)
-
-count_voted_2012 <- ms_six %>% 
-  filter(treatment == "Absentee") %>%
-  count() %>% 
-  pull()
-
-count_voted_2014 <- ms_six %>% 
-  filter(treatment_2014 == "TRUE") %>% 
-  count() %>% 
-  pull()
+  # Narrow down to the columnms we need
   
-treatment_2014_x <- count_voted_2014 / count_voted_2012
-
-count_voted_2012_control <- ms_six %>% 
-  filter(treatment == "In Person/Early Vote") %>%
+  select(treatment, outcome_2012, outcome_2014, outcome_2016, outcome_2018) %>% 
+  
+  # Pivlot longer so that we have a year column
+  
+  pivot_longer(-treatment, names_to = "year", names_prefix = "outcome_", values_to = "vote") %>% 
+  
+  # Prepare to create a table that counts the number of votes for each election,
+  # shown by treatment group
+  
+  group_by(treatment, year, vote) %>% 
+  arrange(year) %>% 
   count() %>% 
-  pull()
+  
+  # Create a column which shows the percentage of each group that voted in each election
+  
+  mutate(perc_treatment = round(100*ifelse(treatment == TRUE, n/56, n/738), digits = 2))
 
-count_voted_2014_control <- ms_six %>% 
-  filter(control_2014 == "TRUE") %>% 
-  count() %>% 
-  pull()
 
-control_2014_x <- count_voted_2014_control / count_voted_2012_control
+treatment_outcomes %>% 
+  
+  # We only need to plot the percentage of those that vote, so we only need data
+  # for vote = TRUE
+  
+  filter(vote == TRUE) %>% 
+  ggplot(aes(x= year, y= perc_treatment, fill = treatment)) +
+  
+  # We already calculated the percentage up above, so we can set stat =
+  # "identity"
+  
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "General Election Turnout Among Voters in Alamance, NC\nWho Turned 18 and Voted for the First Time in 2012", subtitle = "Voters whose first ballots were cast by Absentee Ballots are in the Treatment group", x = "General Election Year", y = "Percent that Cast Ballots", caption = "Explanation for why 2012 is 100%") +
+  
+  # Add data labels
+  
+  geom_text(aes(label = perc_treatment), position = position_dodge(.9), vjust = 2) +
+  theme_classic()
+
+
+# Types of regressions to do Voting conditional on voting in the first. Use glm.
+# Look at descriptively who does mail-in voting - if we don't allow this how would this hurt. Density map of where mail-in voting happens. When running state-wide data - let it sit.
+
+# Density map - interactive, hover over?
+# Turnout for this cohort over time
+
+# About Panel, model panel, analysis panel - one of which is interactive Regress
+# outcome of voting in 2014, 2016, and 2018... Explanatory variable - voting by
+# absentee ballot in 2012. Add controls like age race gender. Write out
+# equations in statistical models page. Explain what different variables are.
+# Appendix with different graphs.
+  
 ```
-
-```{r}
-ggplot(ms_six, aes(x = outcome_2014, fill = treatment)) + 
-  geom_bar(aes(y = (control_2014_x)/(..count..))) +
-  scale_y_continuous(labels=scales::percent) +
-  theme_classic() +
-  labs(x = "Voting Method",
-       y = "Percent of Voters",
-       title = "Voting Method in the 2014 General Election",
-       subtitle = "20-year-old Voters from Alamance County, NC")
-```
-
-```{r}
-ggplot(ms_six, aes(x = gelection_2016, fill = treatment)) + 
-  geom_bar(aes(y = (..count..)/sum(..count..))) +
-  scale_y_continuous(labels=scales::percent) +
-  geom_text(aes( label = scales::percent((..count..)/sum(..count..)),
-  y= (..count..)/sum(..count..)), stat= "count", vjust = .5) +
-  theme_classic() +
-  labs(x = "Voting Method",
-       y = "Percent of Voters",
-       title = "Voting Method in the 2016 General Election",
-       subtitle = "22-year-old Voters from Alamance County, NC",
-       fill = "Voted Absentee in\n2012 General Election")
 ```
 
