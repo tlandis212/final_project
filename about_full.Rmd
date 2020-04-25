@@ -5,7 +5,12 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(gt)
+```
 
+```{r load, cache=TRUE}
 # Use this code to set up the full state dataset
 
 hist <- read.delim("raw-data/ncvhis_Statewide.txt")
@@ -14,17 +19,22 @@ reg <- read.delim("raw-data/ncvoter_Statewide.txt")
 # Make datasets smaller before joining them, otherwise we get a warning that says "vector memory exhausted"
 
 hist_small <- hist %>% 
-  select(county_id, county_desc, voter_reg_num, election_lbl, voting_method, voted_party_cd)
+  select(county_id, county_desc, election_lbl, voting_method, voted_party_cd, ncid)
 
-# Only include people who turned 18 in 2012 (people who were born in 1994)
+# Only include people who turned 18 in 2012 (people who were born in 1994) and
+# who registered to vote in 2012
 
 reg_small <- reg %>% 
-  select(voter_reg_num, zip_code, race_code, ethnic_code, birth_state, registr_dt, birth_year) %>% 
-  filter(birth_year == 1994)
+  select(zip_code, race_code, ethnic_code, birth_state, registr_dt, birth_year, ncid) %>% 
+  filter(birth_year == 1994) %>% 
+  mutate(registr_dt = mdy(registr_dt),
+         registr_year = year(registr_dt))
 
 # Use full join to merge both datasets
 
-full_voter <- full_join(hist, reg, by=c("voter_reg_num"))
+full_voter <- inner_join(hist_small, reg_small, by="ncid")
+
+# save(full_voter, file = "full_voter.RData")
 
 ```
 
@@ -32,6 +42,10 @@ full_voter <- full_join(hist, reg, by=c("voter_reg_num"))
 ```{r}
 vote_cohort <- full_voter %>% 
   
+  # Only include voters who registered to vote in 2012
+  
+  filter(registr_year == 2012) %>% 
+
   # Create a variable which contains the election, but as a string rather than a
   # date. This is so that we can cast these into variables later when we make
   # our data wider. I'm only relabeling for four elections, since I'm going to
@@ -51,6 +65,12 @@ vote_cohort <- full_voter %>%
 
   mutate(absentee = ifelse(voting_method == "ABSENTEE BY MAIL", "Absentee", "Not Absentee")) %>% 
   
+   # Each voters' row should look identical except for the elections column.
+   # Drop columns that prevent that from happening. This is necessary for
+   # pivoting wider
+  
+  select(., -election_lbl, -voting_method, - voted_party_cd) %>% 
+  
   # Create a variable for each of the elections and make the value equal to
   # "Absentee", "Not Absentee", "No Vote"
   
@@ -66,12 +86,33 @@ vote_cohort <- full_voter %>%
          outcome_2012 = ifelse(gelection_2012 != "No Vote", TRUE, FALSE),
          outcome_2014 = ifelse(gelection_2014 != "No Vote", TRUE, FALSE),
          outcome_2016 = ifelse(gelection_2016 != "No Vote", TRUE, FALSE),
-         outcome_2018 = ifelse(gelection_2018 != "No Vote", TRUE, FALSE))
+         outcome_2018 = ifelse(gelection_2018 != "No Vote", TRUE, FALSE)) %>% 
+  select(., -gelection_2012, -gelection_2014, -gelection_2018, -gelection_2016) %>% 
 
  # Only include voters who voted in the 2012 election
+  
+  filter(outcome_2012 == TRUE)
 
-tail(vote_cohort)
+# save(vote_cohort, file = "vote_cohort.RData")
+
 ```
+
+## Summarize Sample
+
+```{r summary, echo = FALSE}
+
+# Print summary statistics of our treatment and control group
+
+vote_cohort %>% 
+  group_by(treatment) %>% 
+  count() %>% 
+  ungroup() %>% 
+  gt() %>% 
+  tab_header(title = "Experimental Sample of Voters who Turned 18 and Registered to Vote in 2012, Then Cast a Ballot", subtitle = "Treatment Group Voted by Absentee Ballot")
+
+```
+
+## Experiment Results
 
 ```{r}
 treatment_outcomes <- vote_cohort %>% 
@@ -80,7 +121,7 @@ treatment_outcomes <- vote_cohort %>%
   
   select(treatment, outcome_2012, outcome_2014, outcome_2016, outcome_2018) %>% 
   
-  # Pivlot longer so that we have a year column
+  # Pivot longer so that we have a year column
   
   pivot_longer(-treatment, names_to = "year", names_prefix = "outcome_", values_to = "vote") %>% 
   
@@ -93,7 +134,11 @@ treatment_outcomes <- vote_cohort %>%
   
   # Create a column which shows the percentage of each group that voted in each election
   
-  mutate(perc_treatment = round(100*ifelse(treatment == TRUE, n/56, n/738), digits = 2))
+  mutate(perc_treatment = round(100*ifelse(treatment == TRUE, n/2507, n/38170), digits = 2)) %>% 
+  
+  # Only include number of votes
+  
+  filter(vote == TRUE)
 
 
 treatment_outcomes %>% 
@@ -101,14 +146,13 @@ treatment_outcomes %>%
   # We only need to plot the percentage of those that vote, so we only need data
   # for vote = TRUE
   
-  filter(vote == TRUE) %>% 
   ggplot(aes(x= year, y= perc_treatment, fill = treatment)) +
   
   # We already calculated the percentage up above, so we can set stat =
   # "identity"
   
   geom_bar(stat = "identity", position = position_dodge()) +
-  labs(title = "General Election Turnout Among Voters in Alamance, NC\nWho Turned 18 and Voted for the First Time in 2012", subtitle = "Voters whose first ballots were cast by Absentee Ballots are in the Treatment group", x = "General Election Year", y = "Percent that Cast Ballots", caption = "Explanation for why 2012 is 100%") +
+  labs(title = "General Election Turnout Among Voters in North Carolina\nWho Turned 18 and Voted for the First Time in 2012", subtitle = "Voters whose first ballots were cast by Absentee Ballots are in the Treatment group", x = "General Election Year", y = "Percent that Cast Ballots", caption = "Our sample is defined as people who turned 18 in 2012, registered to vote in 2012,\nand cast a ballot in 2012, so 100% of both our treatment and control groups voted\n in the 2012 election.") +
   
   # Add data labels
   

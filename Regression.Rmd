@@ -1,0 +1,101 @@
+---
+title: "Regression"
+author: "Liz Hoveland"
+date: "4/24/2020"
+output: html_document
+---
+
+---
+title: "About"
+author: "Teddy Landis & Liz Hoveland"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gt)
+library(lubridate)
+library(janitor)
+library(naniar)
+library(skimr)
+library(broom)
+library(modelsummary)
+
+options(scipen = 999)
+```
+
+```{r regression 2012}
+regression_2012 <- vote_cohort %>% 
+  lm(outcome_2012 ~ treatment, data = .)
+
+regression_2012 %>% 
+  tidy(conf.int = TRUE) %>% 
+  select(term, estimate, conf.low, conf.high) %>% 
+  mutate_if(is.numeric, round, digits = 5) %>% 
+  gt() %>% 
+  tab_header(title = "Effect of Voting Absentee in 2012 on the 2012 Election")
+
+```
+
+```{r regression 2014}
+regression_2014 <- vote_cohort %>% 
+  lm(outcome_2014 ~ treatment, data = .) 
+
+regression_2014 %>% 
+  tidy(conf.int = TRUE) %>% 
+  select(term, estimate, conf.low, conf.high) %>% 
+  mutate_if(is.numeric, round, digits = 5) %>% 
+  gt() %>% 
+  tab_header(title = "Effect of Voting Absentee in 2012 on the 2014 Election")
+  
+```
+
+```{r regression 2016}
+regression_2016 <- vote_cohort %>% 
+  lm(outcome_2016 ~ treatment, data = .) 
+
+regression_2016 %>% 
+  tidy(conf.int = TRUE) %>% 
+  select(term, estimate, conf.low, conf.high) %>% 
+  mutate_if(is.numeric, round, digits = 5) %>%  
+  gt() %>% 
+  tab_header(title = "Effect of Voting Absentee in 2012 on the 2016 Election")
+
+```
+```{r regression 2018, echo = FALSE}
+regression_2018 <- vote_cohort %>% 
+  lm(outcome_2018 ~ treatment, data = .) 
+
+regression_2018 %>% 
+  tidy(conf.int = TRUE) %>% 
+  select(term, estimate, conf.low, conf.high) %>% 
+  mutate_if(is.numeric, round, digits = 5) %>% 
+  gt() %>% 
+  tab_header(title = "Effect of Voting Absentee in 2012 on the 2018 Election")
+```
+
+
+
+```{r compiled, echo = FALSE}
+combined <- tibble(model = list(regression_2012, regression_2014, regression_2016, regression_2018), year = c(2012, 2014, 2016, 2018))
+
+
+regression_table<- combined %>% 
+  mutate(reg_results = map(model, ~ tidy(., conf.int = TRUE))) %>% 
+  
+  # Create varibles for the coefficient, standard error, upper bound and lower bound of total_tweets
+  
+  mutate(coef_treatment = map_dbl(reg_results, ~ filter(., term == "treatmentTRUE") %>% pull(estimate))) %>% 
+  mutate(se_treatment= map_dbl(reg_results, ~ filter(., term == "treatmentTRUE") %>% pull(std.error))) %>% 
+  mutate(lower_treatment = map_dbl(reg_results, ~ filter(., term == "treatmentTRUE") %>% pull(conf.low))) %>%
+  mutate(upper_treatment = map_dbl(reg_results, ~ filter(., term == "treatmentTRUE") %>% pull(conf.high))) %>% 
+  mutate_if(is.numeric, round, digits = 5) %>% 
+  select(year, coef_treatment, se_treatment, lower_treatment, upper_treatment)
+
+regression_table %>% 
+  gt()
+
+# msummary(combined)
+```
+
