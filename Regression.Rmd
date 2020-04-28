@@ -23,6 +23,8 @@ library(broom)
 library(modelsummary)
 
 options(scipen = 999)
+
+load("raw-data/vote_cohort.RData")
 ```
 
 ```{r regression 2012}
@@ -81,7 +83,7 @@ regression_2018 %>%
 combined <- tibble(model = list(regression_2012, regression_2014, regression_2016, regression_2018), year = c(2012, 2014, 2016, 2018))
 
 
-regression_table<- combined %>% 
+regression_table <- combined %>% 
   mutate(reg_results = map(model, ~ tidy(., conf.int = TRUE))) %>% 
   
   # Create varibles for the coefficient, standard error, upper bound and lower bound of total_tweets
@@ -92,6 +94,9 @@ regression_table<- combined %>%
   mutate(upper_treatment = map_dbl(reg_results, ~ filter(., term == "treatmentTRUE") %>% pull(conf.high))) %>% 
   mutate_if(is.numeric, round, digits = 5) %>% 
   select(year, coef_treatment, se_treatment, lower_treatment, upper_treatment)
+
+
+write_rds(regression_table, "Final_Project/raw-data/regression_table.rds")
 
 regression_table %>% 
   gt()
