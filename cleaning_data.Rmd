@@ -1,0 +1,105 @@
+---
+title: "Cleaning Data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(gt)
+
+```
+
+```{r load, cache=TRUE}
+# Use this code to set up the full state dataset
+
+hist <- read.delim("raw-data/ncvhis_Statewide.txt")
+reg <- read.delim("raw-data/ncvoter_Statewide.txt")
+
+# Make datasets smaller before joining them, otherwise we get a warning that says "vector memory exhausted"
+
+hist_small <- hist %>% 
+  select(county_id, county_desc, election_lbl, voting_method, voted_party_cd, ncid)
+
+# Only include people who turned 18 in 2012 (people who were born in 1994) and
+# who registered to vote in 2012
+
+reg_small <- reg %>% 
+  select(zip_code, race_code, ethnic_code, birth_state, registr_dt, birth_year, ncid) %>% 
+  filter(birth_year == 1994) %>% 
+  mutate(registr_dt = mdy(registr_dt),
+         registr_year = year(registr_dt))
+
+# Use full join to merge both datasets
+
+full_voter <- inner_join(hist_small, reg_small, by="ncid")
+
+```
+
+
+```{r cohort, echo = false}
+# Use this code to narrow the sample down to voters who turned 18 in 2012,
+# registered to vote in 2012, and cast a ballot in 2012
+
+# Use command + shift + C to un-comment everything
+
+vote_cohort <- full_voter %>%
+  
+# Only include voters who registered to vote in 2012
+
+  filter(registr_year == 2012) %>%
+
+  # Create a variable which contains the election, but as a string rather than a
+  # date. This is so that we can cast these into variables later when we make our
+  # data wider. I'm only relabeling for four elections, since I'm going to filter
+  # our dataset to only include these four elections
+  
+  mutate(election = recode_factor(election_lbl, `11/06/2012` = "gelection_2012",
+                                  `11/04/2014` = "gelection_2014",
+                                  `11/08/2016` = "gelection_2016",
+                                  `11/06/2018` = "gelection_2018")) %>%
+
+  filter(election == "gelection_2012" | election == "gelection_2014" | election == "gelection_2016" | election == "gelection_2018") %>%
+  
+  # Create a dummy variable that signifies if a vote was cast by a mail-in
+  # absentee ballot. NC offers several type of absentee voting, but we're only
+  # interested in mail-in absentees. All other forms of absentee voting requires
+  # in-person precense and we will count this as an in-person vote
+  
+  mutate(absentee = ifelse(voting_method == "ABSENTEE BY MAIL", "Absentee", "Not Absentee")) %>%
+
+  # Each voters' row should look identical except for the elections column. Drop
+  # columns that prevent that from happening. This is necessary for pivoting
+  # wider.
+
+  select(., -election_lbl, -voting_method, - voted_party_cd) %>%
+
+  # Create a variable for each of the elections and make the value equal to
+  # "Absentee", "Not Absentee", "No Vote"
+  
+  pivot_wider(names_from = election, values_from = absentee, values_fill = list(absentee  = "No Vote")) %>%
+
+  # Identify voters as part of the control or treatment group
+
+  mutate(treatment = ifelse(gelection_2012 == "Absentee", TRUE, FALSE),
+         
+         # Create election outcome variables
+         
+         outcome_2012 = ifelse(gelection_2012 != "No Vote", TRUE, FALSE),
+         outcome_2014 = ifelse(gelection_2014 != "No Vote", TRUE, FALSE),
+         outcome_2016 = ifelse(gelection_2016 != "No Vote", TRUE, FALSE),
+         outcome_2018 = ifelse(gelection_2018 != "No Vote", TRUE, FALSE)) %>%
+  select(., -gelection_2012, -gelection_2014, -gelection_2018, -gelection_2016) %>%
+  
+  # Only include voters who voted in the 2012 election
+
+  filter(outcome_2012 == TRUE)
+
+# Save this dataframe for use in my analysis
+
+# save(vote_cohort, file = "vote_cohort.RData")
+
+
+
+```

@@ -1,0 +1,85 @@
+---
+title: "Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(gt)
+
+# Load in cleaned and trimmed dataset. See cleaning_data.Rmd for details.
+
+load("raw-data/vote_cohort.Rdata")
+```
+
+## Summarize Sample
+
+```{r summary, echo = FALSE}
+
+# Print summary statistics of our treatment and control group
+
+vote_cohort %>% 
+  group_by(treatment) %>% 
+  count() %>% 
+  ungroup() %>% 
+  gt() %>% 
+  tab_header(title = "Experimental Sample of Voters who Turned 18 and Registered to Vote in 2012, Then Cast a Ballot", subtitle = "Treatment Group Voted by Absentee Ballot")
+
+```
+
+## Experiment Results
+
+```{r}
+treatment_outcomes <- vote_cohort %>% 
+  
+  # Narrow down to the columnms we need
+  
+  select(treatment, outcome_2012, outcome_2014, outcome_2016, outcome_2018) %>% 
+  
+  # Pivot longer so that we have a year column
+  
+  pivot_longer(-treatment, names_to = "year", names_prefix = "outcome_", values_to = "vote") %>% 
+  
+  # Prepare to create a table that counts the number of votes for each election,
+  # shown by treatment group
+  
+  group_by(treatment, year, vote) %>% 
+  arrange(year) %>% 
+  count() %>% 
+  
+  # Create a column which shows the percentage of each group that voted in each election
+  
+  mutate(perc_treatment = round(100*ifelse(treatment == TRUE, n/2507, n/38170), digits = 2)) %>% 
+  
+  # Only include number of votes
+  
+  filter(vote == TRUE)
+
+write_rds(treatment_outcomes, "Final_Project/raw-data/treatment_outcomes.rds")
+
+# Creat ggplot
+
+treatment_outcomes %>% 
+  
+  # We only need to plot the percentage of those that vote, so we only need data
+  # for vote = TRUE
+  
+  ggplot(aes(x= year, y= perc_treatment, fill = treatment)) +
+  
+  # We already calculated the percentage up above, so we can set stat =
+  # "identity"
+  
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "General Election Turnout Among Voters in North Carolina\nWho Turned 18 and Voted for the First Time in 2012", subtitle = "Voters whose first ballots were cast by Absentee Ballots are in the Treatment group", x = "General Election Year", y = "Percent that Cast Ballots", caption = "Our sample is defined as people who turned 18 in 2012, registered to vote in 2012,\nand cast a ballot in 2012, so 100% of both our treatment and control groups voted\n in the 2012 election.") +
+  
+  # Add data labels
+  
+  geom_text(aes(label = perc_treatment), position = position_dodge(.9), vjust = 2) +
+  theme_classic()
+
+
+```
+
+
